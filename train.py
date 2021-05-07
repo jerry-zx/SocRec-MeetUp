@@ -17,6 +17,7 @@ from sklearn.metrics import accuracy_score, precision_recall_fscore_support, roc
 def train():
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
     data_dict = dh.load_data()
+
     train_data, train_label, dev_data, dev_label, test_data, test_label = dh.data_split(data_dict)
     train_dataset = dh.Dataset(train_data, train_label)
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=False)
@@ -91,20 +92,19 @@ def evaluation(model, data_loader, device):
 
 if __name__ == '__main__':
     argparser = argparse.ArgumentParser()
-    argparser.add_argument('--task_name', type=str)
-    argparser.add_argument('--warm_up_step', type=int)
-    argparser.add_argument('--report_step', type=int)
-    argparser.add_argument('--eval_step', type=int)
-    argparser.add_argument('--n_epoch', type=int)
-    argparser.add_argument('--init_lr', type=float)
-    argparser.add_argument('--batch_size', type=int)
-    argparser.add_argument('--embed_dim', type=int)
-    argparser.add_argument('--hidden_size', type=int)
-    argparser.add_argument('--n_mem', type=int, default=71822)
+    argparser.add_argument('--task_name', type=str,default='test')
+    argparser.add_argument('--warm_up_step', type=int,default=100)
+    argparser.add_argument('--report_step', type=int,default=1000)
+    argparser.add_argument('--eval_step', type=int,default=3000)
+    argparser.add_argument('--n_epoch', type=int,default=10)
+    argparser.add_argument('--init_lr', type=float,default=5e-6)
+    argparser.add_argument('--batch_size', type=int,default=64)
+    argparser.add_argument('--embed_dim', type=int,default=32)
+    argparser.add_argument('--hidden_size', type=int,default=32)
+    argparser.add_argument('--n_mem', type=int, default=73629)
     argparser.add_argument('--n_ene', type=int, default=55396)
     argparser.add_argument('--n_output', type=int, default=3)
     args = argparser.parse_args()
-
     dir_check_list = [
         './log',
         './model',
