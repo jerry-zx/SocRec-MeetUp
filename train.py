@@ -16,13 +16,13 @@ from sklearn.metrics import accuracy_score, precision_recall_fscore_support, roc
 
 def train():
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
-    data_dict = dh.load_data()
+    data_dict, topic_dict = dh.load_data() # data_dict, [group2topic, mem2topic]
 
-    train_data, train_label, dev_data, dev_label, test_data, test_label = dh.data_split(data_dict)
+    train_data, train_label, dev_data, dev_label, test_data, test_label = dh.data_split(data_dict, topic_dict)
     train_dataset = dh.Dataset(train_data, train_label)
-    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=False)
+    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
     dev_dataset = dh.Dataset(dev_data, dev_label)
-    dev_loader = DataLoader(dev_dataset, batch_size=128, shuffle=False)
+    dev_loader = DataLoader(dev_dataset, batch_size=128, shuffle=True)
 
     lambda1 = lambda epoch : (epoch / args.warm_up_step) if epoch < args.warm_up_step else 0.5 * (
                 math.cos((epoch - args.warm_up_step) / (args.n_epoch * len(train_dataset) - args.warm_up_step) * math.pi) + 1)
@@ -30,7 +30,7 @@ def train():
 
     model = DNN(args).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.init_lr)
-    scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda1)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, len(train_loader) * args.n_epoch)
 
     global_step = 0
     best_f1 = 0.
@@ -39,8 +39,10 @@ def train():
         for batch in tqdm(train_loader):
             optimizer.zero_grad()
             inputs = batch['input'].to(device)
+            group_topic = batch['group_topic'].to(device)
+            mem_topic = batch['mem_topic'].to(device)
             labels = batch['label'].to(device)
-            output = model(inputs, label=labels)
+            output = model(inputs, mem_topic, group_topic, label=labels)
             loss = output[0]
             loss.backward()
             loss_deq.append(loss.item())
@@ -63,7 +65,7 @@ def train():
 
 def evaluation(model, data_loader, device):
     def compute_metrics(preds, labels, loss):
-        precision, recall, f1, _ = precision_recall_fscore_support(labels, np.round(preds).tolist(), average='micro')
+        precision, recall, f1, _ = precision_recall_fscore_support(labels, np.round(preds).tolist(), average='binary')
         acc = accuracy_score(labels, np.round(preds).tolist())
         # auc = roc_auc_score(labels, preds, multi_class='ovo')
         return {
@@ -79,8 +81,10 @@ def evaluation(model, data_loader, device):
     accu_label = []
     for batch in tqdm(data_loader):
         inputs = batch['input'].to(device)
+        group_topic = batch['group_topic'].to(device)
+        mem_topic = batch['mem_topic'].to(device)
         labels = batch['label'].to(device)
-        output = model(inputs, label=labels)
+        output = model(inputs, mem_topic, group_topic, label=labels)
         loss, logits = output
         pred = F.softmax(logits, dim=-1)
         _, pred = torch.max(pred, dim=-1)
@@ -104,7 +108,8 @@ if __name__ == '__main__':
     argparser.add_argument('--n_mem', type=int, default=73629)
     argparser.add_argument('--n_ene', type=int, default=55396)
     argparser.add_argument('--n_group',type=int,default=482)
-    argparser.add_argument('--n_output', type=int, default=3)
+    argparser.add_argument('--n_topic', type=int, default=17120)
+    argparser.add_argument('--n_output', type=int, default=2)
     args = argparser.parse_args()
     dir_check_list = [
         './log',
