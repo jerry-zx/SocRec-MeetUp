@@ -1,8 +1,10 @@
 import os
+import re
 import json
 import torch
 from collections import defaultdict
 from sklearn.model_selection import train_test_split
+
 
 def get_file_list(dir_path):
     file_list = []
@@ -10,6 +12,7 @@ def get_file_list(dir_path):
         for file_name in filename_list:
             file_list.append(os.path.join(root, file_name))
     return file_list
+
 
 def load_data():
     if not os.path.exists('./temp_data'):
@@ -28,15 +31,16 @@ def load_data():
     # LOAD_DICT = False
 
     if os.path.exists('./temp_data/event2idx.json') and \
-        os.path.exists('./temp_data/mem2idx.json') and \
-        os.path.exists('./temp_data/data.json'):
+            os.path.exists('./temp_data/mem2idx.json') and \
+            os.path.exists('./temp_data/data.json'):
         with open("./temp_data/data.json", 'r', encoding='utf-8') as in_f:
             data_dict = json.loads(in_f.readline())
         return data_dict
 
     event_data_list = get_file_list('./data/GroupEvent')
-    for event_file in event_data_list:
+    for event_file_id, event_file in enumerate(event_data_list):
         with open(event_file, 'r', encoding='utf-8') as in_f:
+            group_id = re.findall(r'\d+', event_file)[0]
             for idx, line in enumerate(in_f):
                 # print(line)
                 if idx % 5 == 0:
@@ -47,6 +51,7 @@ def load_data():
                     data_dict[event2idx[event]] = {}
                     data_dict[event2idx[event]]['n_mem'] = int(n_mem)
                     data_dict[event2idx[event]]['time'] = time
+                    data_dict[event2idx[event]]['group_id'] = int(group_id)
                 elif idx % 5 == 1:  # for organizer
                     org = line.strip()
                     if org not in mem2idx.keys():
@@ -77,8 +82,7 @@ def load_data():
     return data_dict
 
 
-def data_split(data: dict, dev_ratio: float=0.1, test_ratio: float=0.2):
-
+def data_split(data: dict, dev_ratio: float = 0.1, test_ratio: float = 0.2):
     def _make_a_data(data_key):
         d = data[data_key]
         yes_m_list = d['yes']
@@ -86,70 +90,70 @@ def data_split(data: dict, dev_ratio: float=0.1, test_ratio: float=0.2):
         maybe_m_list = d['maybe']
         return yes_m_list, no_m_list, maybe_m_list
 
-
     import numpy as np
 
     np.random.seed(0)
     total = len(data)
-    print("total",total)
     amount_dev = int(total * dev_ratio)
     amount_test = int(total * test_ratio)
     data_key = list(data.keys())
     np.random.shuffle(data_key)
 
     dev_keys = data_key[:amount_dev]
-    test_keys = data_key[amount_dev: amount_dev+amount_test]
-    train_keys = data_key[amount_dev+amount_test: ]
+    test_keys = data_key[amount_dev: amount_dev + amount_test]
+    train_keys = data_key[amount_dev + amount_test:]
 
     train_data, dev_data, test_data = [], [], []
     train_label, dev_label, test_label = [], [], []
+    # data:(org,group,member)
     for k in train_keys:
         yes, no, maybe = _make_a_data(k)
-        k = int(k)
-        train_data.extend([(k, _) for _ in yes])
+        org, group = data[k]['org'], data[k]['group_id']
+        train_data.extend([(org, group, _) for _ in yes])
         train_label.extend([0 for _ in yes])
-        train_data.extend([(k, _) for _ in no])
+        train_data.extend([(org, group, _) for _ in no])
         train_label.extend([1 for _ in no])
-        train_data.extend([(k, _) for _ in maybe])
+        train_data.extend([(org, group, _) for _ in maybe])
         train_label.extend([2 for _ in maybe])
 
     for k in dev_keys:
         yes, no, maybe = _make_a_data(k)
-        k = int(k)
-        dev_data.extend([(k, _) for _ in yes])
+        org, group = data[k]['org'], data[k]['group_id']
+        dev_data.extend([(org, group, _) for _ in yes])
         dev_label.extend([0 for _ in yes])
-        dev_data.extend([(k, _) for _ in no])
+        dev_data.extend([(org, group, _) for _ in no])
         dev_label.extend([1 for _ in no])
-        dev_data.extend([(k, _) for _ in maybe])
+        dev_data.extend([(org, group, _) for _ in maybe])
         dev_label.extend([2 for _ in maybe])
 
     for k in test_keys:
         yes, no, maybe = _make_a_data(k)
-        k = int(k)
-        test_data.extend([(k, _) for _ in yes])
+        org, group = data[k]['org'], data[k]['group_id']
+        test_data.extend([(org, group, _) for _ in yes])
         test_label.extend([0 for _ in yes])
-        test_data.extend([(k, _) for _ in no])
+        test_data.extend([(org, group, _) for _ in no])
         test_label.extend([1 for _ in no])
-        test_data.extend([(k, _) for _ in maybe])
+        test_data.extend([(org, group, _) for _ in maybe])
         test_label.extend([2 for _ in maybe])
 
     return train_data, train_label, dev_data, dev_label, test_data, test_label
 
 
 class Dataset(torch.utils.data.Dataset):
-    def __init__(self, data, label) :
+    def __init__(self, data, label):
         super(Dataset, self).__init__()
         self.data = data
         self.label = label
 
-    def __getitem__(self, idx) :
+    def __getitem__(self, idx):
         batch = dict()
         batch['input'] = torch.tensor(self.data[idx], dtype=torch.int64)
         batch['label'] = torch.tensor(self.label[idx], dtype=torch.int64)
         return batch
 
-    def __len__(self) :
+    def __len__(self):
         return len(self.data)
+
 
 if __name__ == '__main__':
     print(get_file_list("./data/GroupEvent"))
