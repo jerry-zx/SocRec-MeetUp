@@ -35,22 +35,24 @@ def load_data():
             os.path.exists('./temp_data/data.json') and \
             os.path.exists('./temp_data/group2topic.json') and \
             os.path.exists('./temp_data/mem2topic.json') and \
-            os.path.exists('./temp_data/topic2idx.json'):
+            os.path.exists('./temp_data/topic2idx.json') and \
+            os.path.exists('./temp_data/neighbor.json'):
         with open("./temp_data/data.json", 'r', encoding='utf-8') as f_in:
             data_dict = json.loads(f_in.readline())
-        with open('./temp_data/group2topic.json', 'r', encoding='utf-8') as f_in :
+        with open('./temp_data/group2topic.json', 'r', encoding='utf-8') as f_in:
             group2topic = json.loads(f_in.readline())
-        with open("./temp_data/mem2topic.json", 'r', encoding='utf-8') as f_in :
+        with open("./temp_data/mem2topic.json", 'r', encoding='utf-8') as f_in:
             mem2topic = json.loads(f_in.readline())
+        with open('./temp_data/neighbor.json', 'r', encoding='utf-8') as f_in:
+            neighbor = json.loads(f_in.readline())
 
-        return data_dict, [group2topic, mem2topic]
+        return data_dict, [group2topic, mem2topic], neighbor
 
     event_data_list = get_file_list('./data/GroupEvent')
     for event_file_id, event_file in enumerate(event_data_list):
         with open(event_file, 'r', encoding='utf-8') as in_f:
             group_id = re.findall(r'\d+', event_file)[0]
             for idx, line in enumerate(in_f):
-                # print(line)
                 if idx % 5 == 0:
                     event, n_mem, time = line.split()
                     if event not in event2idx.keys():
@@ -87,7 +89,6 @@ def load_data():
     with open('./temp_data/data.json', 'w', encoding='utf-8') as f_out:
         f_out.write(json.dumps(data_dict, ensure_ascii=False))
 
-    #
     topic2idx = defaultdict(int)
     group2topic = defaultdict(list)
     # leaving t_idx = 0 as dummy id, because some users' interesting topic is unknown
@@ -138,15 +139,14 @@ def load_data():
         f_out.write(json.dumps(group2topic, ensure_ascii=False))
     with open("./temp_data/mem2topic.json", 'w', encoding='utf-8') as f_out:
         f_out.write(json.dumps(mem2topic, ensure_ascii=False))
+    # Add code here if end-to-end requires
+    with open('./temp_data/neighbor.json', 'r', encoding='utf-8') as f_in:
+        neighbor = json.loads(f_in.readline())
+    return data_dict, [group2topic, mem2topic], neighbor
 
 
-
-
-
-    return data_dict, [group2topic, mem2topic]
-
-
-def data_split(data: dict, other_dict: dict, dev_ratio: float = 0.1, test_ratio: float = 0.2, topic_padding: int = 5):
+def data_split(data: dict, topic_dict: dict, neighbor_dict: dict, dev_ratio: float = 0.1, test_ratio: float = 0.2,
+               topic_padding: int = 5, neighbor_padding: int = 5):
     def _make_a_data(data_key):
         d = data[data_key]
         yes_m_list = d['yes']
@@ -161,9 +161,17 @@ def data_split(data: dict, other_dict: dict, dev_ratio: float = 0.1, test_ratio:
             topic_list.extend([0] * (topic_padding - len(topic_list)))
         return topic_list
 
+    def _neighbor_padding(neighbor_list):
+        if len(neighbor_list) >= neighbor_padding:
+            neighbor_list = neighbor_list[:neighbor_padding]
+        else:
+            neighbor_list.extend([75135] * (neighbor_padding - len(neighbor_list)))
+        return neighbor_list
+
     import numpy as np
 
-    group2topic, mem2topic = other_dict
+    group2topic, mem2topic = topic_dict
+    mem2neighbor = neighbor_dict
 
     np.random.seed(0)
     total = len(data)
@@ -183,31 +191,50 @@ def data_split(data: dict, other_dict: dict, dev_ratio: float = 0.1, test_ratio:
     for k in train_keys:
         yes, no, maybe = _make_a_data(k)
         org, group = data[k]['org'], data[k]['group_id']
-        train_data.extend([(org, group, _, _topic_padding(mem2topic[str(_)]), _topic_padding(group2topic[str(group)])) for _ in yes])
+        train_data.extend(
+            [(org, group, _, _neighbor_padding([pair[0] for pair in mem2neighbor[str(_)]]),
+              _topic_padding(mem2topic[str(_)]), _topic_padding(group2topic[str(group)])) for _ in yes])
         train_label.extend([0 for _ in yes])
-        train_data.extend([(org, group, _, _topic_padding(mem2topic[str(_)]), _topic_padding(group2topic[str(group)])) for _ in no])
+        train_data.extend(
+            [(org, group, _, _neighbor_padding([pair[0] for pair in mem2neighbor[str(_)]]),
+              _topic_padding(mem2topic[str(_)]), _topic_padding(group2topic[str(group)])) for _ in no])
         train_label.extend([1 for _ in no])
-        train_data.extend([(org, group, _, _topic_padding(mem2topic[str(_)]), _topic_padding(group2topic[str(group)])) for _ in maybe])
+        train_data.extend(
+            [(org, group, _, _neighbor_padding([pair[0] for pair in mem2neighbor[str(_)]]),
+              _topic_padding(mem2topic[str(_)]), _topic_padding(group2topic[str(group)])) for _ in maybe])
         train_label.extend([1 for _ in maybe])
 
     for k in dev_keys:
         yes, no, maybe = _make_a_data(k)
         org, group = data[k]['org'], data[k]['group_id']
-        dev_data.extend([(org, group, _, _topic_padding(mem2topic[str(_)]), _topic_padding(group2topic[str(group)])) for _ in yes])
+        dev_data.extend(
+            [(org, group, _, _neighbor_padding([pair[0] for pair in mem2neighbor[str(_)]]),
+              _topic_padding(mem2topic[str(_)]), _topic_padding(group2topic[str(group)])) for _ in yes])
         dev_label.extend([0 for _ in yes])
-        dev_data.extend([(org, group, _, _topic_padding(mem2topic[str(_)]), _topic_padding(group2topic[str(group)])) for _ in no])
+        dev_data.extend(
+            [(org, group, _, _neighbor_padding([pair[0] for pair in mem2neighbor[str(_)]]),
+              _topic_padding(mem2topic[str(_)]), _topic_padding(group2topic[str(group)])) for _ in no])
         dev_label.extend([1 for _ in no])
-        dev_data.extend([(org, group, _, _topic_padding(mem2topic[str(_)]), _topic_padding(group2topic[str(group)])) for _ in maybe])
+        dev_data.extend(
+            [(org, group, _, _neighbor_padding([pair[0] for pair in mem2neighbor[str(_)]]),
+              _topic_padding(mem2topic[str(_)]), _topic_padding(group2topic[str(group)])) for _ in
+             maybe])
         dev_label.extend([1 for _ in maybe])
 
     for k in test_keys:
         yes, no, maybe = _make_a_data(k)
         org, group = data[k]['org'], data[k]['group_id']
-        test_data.extend([(org, group, _, _topic_padding(mem2topic[str(_)]), _topic_padding(group2topic[str(group)])) for _ in yes])
+        test_data.extend(
+            [(org, group, _, _neighbor_padding([pair[0] for pair in mem2neighbor[str(_)]]),
+              _topic_padding(mem2topic[str(_)]), _topic_padding(group2topic[str(group)])) for _ in yes])
         test_label.extend([0 for _ in yes])
-        test_data.extend([(org, group, _, _topic_padding(mem2topic[str(_)]), _topic_padding(group2topic[str(group)])) for _ in no])
+        test_data.extend(
+            [(org, group, _, _neighbor_padding([pair[0] for pair in mem2neighbor[str(_)]]),
+              _topic_padding(mem2topic[str(_)]), _topic_padding(group2topic[str(group)])) for _ in no])
         test_label.extend([1 for _ in no])
-        test_data.extend([(org, group, _, _topic_padding(mem2topic[str(_)]), _topic_padding(group2topic[str(group)])) for _ in maybe])
+        test_data.extend(
+            [(org, group, _, _neighbor_padding([pair[0] for pair in mem2neighbor[str(_)]]),
+              _topic_padding(mem2topic[str(_)]), _topic_padding(group2topic[str(group)])) for _ in maybe])
         test_label.extend([1 for _ in maybe])
 
     return train_data, train_label, dev_data, dev_label, test_data, test_label
@@ -222,8 +249,9 @@ class Dataset(torch.utils.data.Dataset):
     def __getitem__(self, idx):
         batch = dict()
         batch['input'] = torch.tensor(self.data[idx][:3], dtype=torch.int64)
-        batch['mem_topic'] = torch.tensor(self.data[idx][3], dtype=torch.int64)
-        batch['group_topic'] = torch.tensor(self.data[idx][4], dtype=torch.int64)
+        batch['mem_neighbor'] = torch.tensor(self.data[idx][3], dtype=torch.int64)
+        batch['mem_topic'] = torch.tensor(self.data[idx][4], dtype=torch.int64)
+        batch['group_topic'] = torch.tensor(self.data[idx][5], dtype=torch.int64)
         batch['label'] = torch.tensor(self.label[idx], dtype=torch.int64)
         return batch
 

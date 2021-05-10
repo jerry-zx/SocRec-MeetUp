@@ -14,16 +14,19 @@ from tqdm import tqdm
 from torch.utils.data import DataLoader
 from sklearn.metrics import accuracy_score, precision_recall_fscore_support, roc_auc_score
 
+# os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 def train():
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
-    data_dict, topic_dict = dh.load_data()  # data_dict, [group2topic, mem2topic]
-
-    train_data, train_label, dev_data, dev_label, test_data, test_label = dh.data_split(data_dict, topic_dict)
+    data_dict, topic_dict, neighbor_dict = dh.load_data()  # data_dict, [group2topic, mem2topic]
+    print("Data Preprocess Completed")
+    train_data, train_label, dev_data, dev_label, test_data, test_label = dh.data_split(data_dict, topic_dict,
+                                                                                        neighbor_dict)
     train_dataset = dh.Dataset(train_data, train_label)
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
     dev_dataset = dh.Dataset(dev_data, dev_label)
     dev_loader = DataLoader(dev_dataset, batch_size=128, shuffle=True)
+    print("Dataloader Completed")
 
     lambda1 = lambda epoch: (epoch / args.warm_up_step) if epoch < args.warm_up_step else 0.5 * (
             math.cos(
@@ -40,10 +43,11 @@ def train():
         for batch in tqdm(train_loader):
             optimizer.zero_grad()
             inputs = batch['input'].to(device)
+            mem_neighbor = batch['mem_neighbor'].to(device)
             group_topic = batch['group_topic'].to(device)
             mem_topic = batch['mem_topic'].to(device)
             labels = batch['label'].to(device)
-            output = model(inputs, mem_topic, group_topic, label=labels)
+            output = model(inputs, mem_neighbor, mem_topic, group_topic, label=labels)
             loss = output[0]
             loss.backward()
             loss_deq.append(loss.item())
@@ -84,10 +88,11 @@ def evaluation(model, data_loader, device):
     accu_label = []
     for batch in tqdm(data_loader):
         inputs = batch['input'].to(device)
+        mem_neighbor = batch['mem_neighbor'].to(device)
         group_topic = batch['group_topic'].to(device)
         mem_topic = batch['mem_topic'].to(device)
         labels = batch['label'].to(device)
-        output = model(inputs, mem_topic, group_topic, label=labels)
+        output = model(inputs, mem_neighbor, mem_topic, group_topic, label=labels)
         loss, logits = output
         pred = F.softmax(logits, dim=-1)
         _, pred = torch.max(pred, dim=-1)
@@ -100,19 +105,19 @@ def evaluation(model, data_loader, device):
 
 if __name__ == '__main__':
     argparser = argparse.ArgumentParser()
-    argparser.add_argument('--task_name', type=str, default='test092349')
+    argparser.add_argument('--task_name', type=str, default='test05101126')
     argparser.add_argument('--warm_up_step', type=int, default=100)
-    argparser.add_argument('--report_step', type=int, default=1000)
+    argparser.add_argument('--report_step', type=int, default=3000)
     argparser.add_argument('--eval_step', type=int, default=3000)
-    argparser.add_argument('--n_epoch', type=int, default=10)
+    argparser.add_argument('--n_epoch', type=int, default=20)
     argparser.add_argument('--init_lr', type=float, default=1e-3)
-    argparser.add_argument('--batch_size', type=int, default=64)
+    argparser.add_argument('--batch_size', type=int, default=128)
     argparser.add_argument('--embed_dim', type=int, default=32)
     argparser.add_argument('--hidden_size', type=int, default=32)
-    argparser.add_argument('--n_mem', type=int, default=73629)
+    argparser.add_argument('--n_mem', type=int, default=75136)
     argparser.add_argument('--n_ene', type=int, default=55396)
     argparser.add_argument('--n_group', type=int, default=482)
-    argparser.add_argument('--n_topic', type=int, default=17120)
+    argparser.add_argument('--n_topic', type=int, default=17129)
     argparser.add_argument('--n_output', type=int, default=2)
     args = argparser.parse_args()
     dir_check_list = [
