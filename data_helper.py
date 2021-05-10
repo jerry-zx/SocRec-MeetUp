@@ -26,6 +26,7 @@ def load_data():
     event2idx = defaultdict(int)
     e_idx = 0
     mem2idx = defaultdict(int)
+    idx2mem = dict()
     m_idx = 0
     data_dict = {}
     # LOAD_DICT = False
@@ -35,7 +36,9 @@ def load_data():
             os.path.exists('./temp_data/data.json') and \
             os.path.exists('./temp_data/group2topic.json') and \
             os.path.exists('./temp_data/mem2topic.json') and \
-            os.path.exists('./temp_data/topic2idx.json'):
+            os.path.exists('./temp_data/topic2idx.json') and \
+            os.path.exists('./temp_data/idx2mem.json') and\
+            os.path.exists('./temp_data/idx2topic.json'):
         with open("./temp_data/data.json", 'r', encoding='utf-8') as f_in:
             data_dict = json.loads(f_in.readline())
         with open('./temp_data/group2topic.json', 'r', encoding='utf-8') as f_in :
@@ -64,6 +67,7 @@ def load_data():
                     org = line.strip()
                     if org not in mem2idx.keys():
                         mem2idx[org] = m_idx
+                        idx2mem[m_idx] = org
                         m_idx += 1
                     data_dict[event2idx[event]]['org'] = mem2idx[org]
                 else:
@@ -72,6 +76,7 @@ def load_data():
                     for mem in mem_list:
                         if mem not in mem2idx.keys():
                             mem2idx[mem] = m_idx
+                            idx2mem[m_idx] = mem
                             m_idx += 1
                         _.append(mem2idx[mem])
                     if idx % 5 == 2:
@@ -89,6 +94,7 @@ def load_data():
 
     #
     topic2idx = defaultdict(int)
+    idx2topic = dict()
     group2topic = defaultdict(list)
     # leaving t_idx = 0 as dummy id, because some users' interesting topic is unknown
     t_idx = 1
@@ -103,6 +109,7 @@ def load_data():
                 for topic in line:
                     if topic not in topic2idx.keys():
                         topic2idx[topic] = t_idx
+                        idx2topic[t_idx] = topic
                         t_idx += 1
                     topic_list.append(topic2idx[topic])
                 group2topic[group_id] = topic_list
@@ -138,6 +145,10 @@ def load_data():
         f_out.write(json.dumps(group2topic, ensure_ascii=False))
     with open("./temp_data/mem2topic.json", 'w', encoding='utf-8') as f_out:
         f_out.write(json.dumps(mem2topic, ensure_ascii=False))
+    with open("./temp_data/idx2mem.json", 'w', encoding='utf-8') as f_out:
+        f_out.write(json.dumps(idx2mem, ensure_ascii=False))
+    with open("./temp_data/idx2topic.json", 'w', encoding='utf-8') as f_out:
+        f_out.write(json.dumps(idx2topic, ensure_ascii=False))
 
 
 
