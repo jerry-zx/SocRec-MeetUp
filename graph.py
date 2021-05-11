@@ -238,7 +238,7 @@ def getneighbor(type):
     neighbor=defaultdict(list)
     print("共",len(graph))
     for i,pair in  enumerate(graph):
-        # if(i%100==0): #均匀采样
+        if(i%100==0): #均匀采样
         # if(pair[2]>=10): #阈值
             print(pair[0],pair[1])
             neighbor[member_list[memberlist[pair[0]]]].append([member_list[memberlist[pair[1]]],pair[2]])
@@ -247,15 +247,15 @@ def getneighbor(type):
         lis.sort(key=lambda x:x[1])
     neighbor = fillneighbor(neighbor)
 
-    # if(type=="topic"):
-    #     np.save("./threshold8_tneighbor",neighbor)
-    # else:
-    with open(path, 'w', encoding='utf-8') as f_out:
-        f_out.write(json.dumps(neighbor, ensure_ascii=False,cls=NpEncoder))
+    if(type=="topic"):
+        np.save("./tneighbor",neighbor)
+    else:
+        with open(path, 'w', encoding='utf-8') as f_out:
+            f_out.write(json.dumps(neighbor, ensure_ascii=False,cls=NpEncoder))
 
 def get():
     # print("开始读取")
-    with open("./10tneighbor_ratio.json", 'r', encoding='utf-8') as f_in:
+    with open("./tneighbor_ratio.json", 'r', encoding='utf-8') as f_in:
         neighbor = json.loads(f_in.readline())
     print(len(neighbor))
     # memberlist=np.load("./memberlist.npy")
@@ -274,7 +274,7 @@ def getpair(n1,n2):
         return n2+n1
 
 def presenttneighbor(ratio): #ratio[0,1]
-    neighbor=np.load("./10tneighbor.npy",allow_pickle=True).item()
+    neighbor=np.load("./tneighbor.npy",allow_pickle=True).item()
     for m in neighbor.keys():
         print("开始长度", len(neighbor[m]))
         num=math.ceil(-1*len(neighbor[m])*ratio)
@@ -282,11 +282,11 @@ def presenttneighbor(ratio): #ratio[0,1]
             num==max(-10,-1*len(neighbor[m]))
         neighbor[m]=neighbor[m][num:]
         print("之后长度",len(neighbor[m]))
-    with open("./10tneighbor_ratio.json", 'w', encoding='utf-8') as f_out:
+    with open("./tneighbor_ratio.json", 'w', encoding='utf-8') as f_out:
         f_out.write(json.dumps(neighbor, ensure_ascii=False, cls=NpEncoder))
 
 def thresholdtneighbor(threshold):
-    neighbor=np.load("./10tneighbor.npy",allow_pickle=True).item()
+    neighbor=np.load("./tneighbor.npy",allow_pickle=True).item()
     for m in neighbor.keys():
         print("跳出寻找")
         for i in range(len(neighbor[m])):
@@ -299,7 +299,7 @@ def thresholdtneighbor(threshold):
                 break
         if(clear):
             neighbor[m]=[]
-    with open("./10tneighbor_threshold.json", 'w', encoding='utf-8') as f_out:
+    with open("./tneighbor_threshold.json", 'w', encoding='utf-8') as f_out:
         f_out.write(json.dumps(neighbor, ensure_ascii=False, cls=NpEncoder))
 
 
@@ -341,10 +341,8 @@ def time_event_graph(wy,wn,wm,seg): #生成pair的方式与之前不同，这里
                 pairkey=getpair(Edic[e].mmembers[i],Edic[e].mmembers[j])
                 # print(pairkey)
                 if(pairkey not in MEdic): #不存在该边
-                    print("这里")
                     MEdic[pairkey]=[Edic[e].mmembers[i],Edic[e].mmembers[j],wm]
                 else:
-                    print("这里")
                     MEdic[pairkey][2]+=wm  #更新边权
         if(idx%length==0 or idx==len(Elist)-1):  #达到一个分段
             print(idx)
@@ -354,12 +352,18 @@ def time_event_graph(wy,wn,wm,seg): #生成pair的方式与之前不同，这里
 
 
 
-
+#以下是对文件的预处理操作，需要占用较大的空间
 if __name__ == '__main__':
-    # getmember()
+    getmember()
+    graph("topic")
+    getneighbor("topic")
+    graph("yexe")
+    getneighbor("yexe")
+    # graph("nexe")
+    # getneighbor("nexe")
     # graph("mexe")
     # getneighbor("mexe")
-    # presenttneighbor(0.3)
-    # thresholdtneighbor(4)
+    presenttneighbor(0.3)
+    thresholdtneighbor(4)
     # get();
     time_event_graph(2,0.5,0.5,10)
