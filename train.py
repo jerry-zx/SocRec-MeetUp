@@ -110,7 +110,7 @@ if __name__ == '__main__':
     argparser.add_argument('--report_step', type=int, default=3000)
     argparser.add_argument('--eval_step', type=int, default=3000)
     argparser.add_argument('--n_epoch', type=int, default=20)
-    argparser.add_argument('--init_lr', type=float, default=1e-3)
+    argparser.add_argument('--init_lr', type=float, default=5e-3)
     argparser.add_argument('--batch_size', type=int, default=128)
     argparser.add_argument('--embed_dim', type=int, default=32)
     argparser.add_argument('--hidden_size', type=int, default=32)
